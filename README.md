@@ -4,6 +4,97 @@
 
 **A multi-agent operating system for discovering, developing, testing, rejecting, forward-testing, and cataloguing systematic trading strategies.**
 
+---
+
+## Quick Start (MVP Vertical Slice)
+
+### Prerequisites
+- Node.js 20+, pnpm 9.7+, Docker Desktop
+
+### 1. Install
+
+```bash
+pnpm install
+```
+
+### 2. Start infrastructure
+
+```bash
+docker compose up -d
+# PostgreSQL 16 on :5432, Redis 7 on :6379
+```
+
+### 3. Configure
+
+```bash
+cp .env.example .env
+# Edit DATABASE_URL, REDIS_URL, R2_*, STUB_AUTH=true
+```
+
+### 4. Migrate database
+
+```bash
+pnpm db:migrate
+```
+
+### 5. Start all services
+
+```bash
+pnpm dev
+# API: http://localhost:3001
+# Web: http://localhost:3000
+# worker-backtest: CSV parse + metrics
+```
+
+### Key development commands
+
+| Command | Description |
+|---------|-------------|
+| `pnpm test` | Run unit tests (metrics, workflow, CSV parsing, hashing) |
+| `pnpm typecheck` | TypeScript across all packages |
+| `pnpm db:generate` | Generate migrations after schema changes |
+| `pnpm build` | Build all packages |
+
+### API stub auth headers (dev only)
+
+```
+X-Stub-User-Id: user_dev
+X-Stub-Org-Id: org_dev
+X-Stub-Role: ADMIN
+```
+
+### TradingView CSV ingestion (MVP path)
+
+1. `POST /api/v1/verifications` — create verification
+2. `POST /api/v1/verifications/:id/presign` — get presigned R2 URL
+3. Upload CSV to presigned URL (client PUT)
+4. `POST /api/v1/verifications/:id/uploads/:uploadId/complete` — triggers parse + metrics + parity
+5. View results: `/api/v1/versions/:versionId/metrics|equity|drawdown|parity`
+
+### Architecture overview
+
+```
+apps/api            Fastify REST API — thin routes → services → DB
+apps/web            Next.js 14 App Router — Campaigns, Strategy Library, Strategy Detail
+apps/worker-backtest BullMQ worker — CSV parse, metric computation, parity report
+packages/contracts  Zod schemas + branded TypeScript types (canonical)
+packages/db         Drizzle ORM schema + R2 storage client
+packages/auth       Stub auth + org-scoped middleware
+packages/workflow   State machine — sole authority for lifecycle transitions
+packages/metrics    Independent metric calculations using decimal.js
+packages/pine       TradingView CSV parsers + source hash helpers
+```
+
+### Design invariants
+
+- **Immutable versions**: Any material strategy change creates a new row — never mutates tested code
+- **Independent metrics**: ARF-OS recalculates everything from raw trades (never trusts TV-reported numbers)
+- **Workflow authority**: Only `packages/workflow` may perform lifecycle transitions — workers emit events, API applies
+- **Org isolation**: Every DB query is scoped to the caller's orgId
+- **Append-only audit**: Every state change writes an audit event; no deletions
+
+---
+
 > **Project status:** Specification complete · MVP implementation pending  
 > **Strategy language:** Pine Script® v6  
 > **Primary stack:** TypeScript · Next.js · Fastify · PostgreSQL · Redis · BullMQ  

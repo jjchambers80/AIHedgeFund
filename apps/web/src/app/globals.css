@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #0f1117;
+  --foreground: #e2e8f0;
+  --card: #1a1f2e;
+  --card-border: #2d3748;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --muted: #4a5568;
+  --muted-fg: #a0aec0;
+  --danger: #fc8181;
+  --success: #68d391;
+  --warning: #f6c90e;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}

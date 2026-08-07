@@ -1,0 +1,21 @@
+node_modules/
+dist/
+.next/
+.turbo/
+*.tsbuildinfo
+coverage/
+.env
+.env.local
+.env.*.local
+
+# DB
+*.sqlite
+drizzle/
+
+# Uploads / artefacts (never commit)
+uploads/
+artefacts/
+
+# OS
+.DS_Store
+Thumbs.db
