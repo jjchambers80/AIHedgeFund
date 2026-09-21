@@ -5,12 +5,18 @@
  * Every exported function is pure and deterministic.
  * Calculation version: 1.0.0
  */
-import Decimal from "decimal.js";
+import { Decimal } from "decimal.js";
 import type { ParsedTrade } from "@arf-os/pine";
 
 export const CALCULATION_VERSION = "1.0.0";
 
 Decimal.set({ precision: 28, rounding: Decimal.ROUND_HALF_UP });
+
+export interface MonthlyReturn {
+  month: string;       // "YYYY-MM"
+  pnl: string;         // decimal string
+  returnPct: string;   // fraction e.g. "0.0512" = 5.12% relative to equity at month start
+}
 
 export interface TradeMetrics {
   tradeCount: number;
@@ -25,6 +31,7 @@ export interface TradeMetrics {
   totalCommission: string;
   longestLosingStreak: number;
   avgHoldingDurationHours: string | null;
+  monthlyReturns: MonthlyReturn[];
 }
 
 export function computeTradeMetrics(trades: ParsedTrade[]): TradeMetrics {
@@ -42,6 +49,7 @@ export function computeTradeMetrics(trades: ParsedTrade[]): TradeMetrics {
       totalCommission: "0",
       longestLosingStreak: 0,
       avgHoldingDurationHours: null,
+      monthlyReturns: [],
     };
   }
 
@@ -104,6 +112,35 @@ export function computeTradeMetrics(trades: ParsedTrade[]): TradeMetrics {
       ? new Decimal(totalHoldingMs).div(holdingCount).div(3_600_000).toFixed(4)
       : null;
 
+  // Group trades by exit month and compute monthly returns
+  const monthPnlMap = new Map<string, Decimal>();
+  for (const t of trades) {
+    try {
+      const exitDate = new Date(t.exitTime);
+      if (isNaN(exitDate.getTime())) continue;
+      const month = `${exitDate.getUTCFullYear()}-${String(exitDate.getUTCMonth() + 1).padStart(2, "0")}`;
+      const prev = monthPnlMap.get(month) ?? new Decimal(0);
+      monthPnlMap.set(month, prev.add(new Decimal(t.netPnl)));
+    } catch {
+      // ignore malformed dates
+    }
+  }
+  const sortedMonths = Array.from(monthPnlMap.keys()).sort();
+  const monthlyReturns: MonthlyReturn[] = [];
+  let runningEquity = new Decimal(0);
+  for (const month of sortedMonths) {
+    const pnl = monthPnlMap.get(month)!;
+    const returnPct = runningEquity.greaterThan(0)
+      ? pnl.div(runningEquity)
+      : new Decimal(0);
+    monthlyReturns.push({
+      month,
+      pnl: pnl.toFixed(8),
+      returnPct: returnPct.toFixed(8),
+    });
+    runningEquity = runningEquity.add(pnl);
+  }
+
   return {
     tradeCount,
     grossProfit: grossProfit.toFixed(8),
@@ -117,5 +154,6 @@ export function computeTradeMetrics(trades: ParsedTrade[]): TradeMetrics {
     totalCommission: totalCommission.toFixed(8),
     longestLosingStreak: maxStreak,
     avgHoldingDurationHours,
+    monthlyReturns,
   };
 }

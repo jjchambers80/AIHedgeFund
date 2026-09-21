@@ -35,12 +35,13 @@ function normaliseLabelKey(label: string): string {
 export function parseSummaryCSV(csvText: string): SummaryParseResult {
   const warnings: ParseWarning[] = [];
   const delimiter = detectDelimiter(csvText);
-  const decimalSep = detectDecimalSeparator(csvText);
+  const decimalSep = detectDecimalSeparator(csvText, delimiter);
 
   const partial: Partial<ParsedPerformanceSummary> = {
     currency: "USD",
   };
 
+  const unknownLabels = new Set<string>();
   const lines = csvText.trim().split(/\r?\n/);
   for (const line of lines) {
     if (!line.trim()) continue;
@@ -51,7 +52,10 @@ export function parseSummaryCSV(csvText: string): SummaryParseResult {
     const rawValue = cols[1] ?? "";
 
     const field = METRIC_MAP[label];
-    if (!field) continue; // skip unrecognised rows silently
+    if (!field) {
+      if (label) unknownLabels.add(cols[0] ?? label);
+      continue; // not a metric we consume — flagged below, not fatal
+    }
 
     const cleaned = rawValue.replace(/%/g, "").trim();
     const normalised = normaliseNumber(cleaned, decimalSep);
@@ -79,6 +83,12 @@ export function parseSummaryCSV(csvText: string): SummaryParseResult {
     warnings.push({
       code: "MISSING_METRICS",
       message: `Could not find required metrics: ${missing.join(", ")}`,
+    });
+  }
+  if (unknownLabels.size > 0) {
+    warnings.push({
+      code: "UNKNOWN_ROW",
+      message: `Unrecognised row label(s), values ignored: ${[...unknownLabels].join(", ")}`,
     });
   }
 

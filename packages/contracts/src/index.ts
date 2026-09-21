@@ -7,3 +7,4 @@ export * from "./metrics.js";
 export * from "./decisions.js";
 export * from "./events.js";
 export * from "./api.js";
+export * from "./jobs.js";

@@ -52,7 +52,7 @@ function parseDateTime(raw: string): string {
 export function parseTradesCSV(csvText: string): TradeParseResult {
   const warnings: ParseWarning[] = [];
   const delimiter = detectDelimiter(csvText);
-  const decimalSep = detectDecimalSeparator(csvText);
+  const decimalSep = detectDecimalSeparator(csvText, delimiter);
 
   const lines = csvText.trim().split(/\r?\n/);
   if (lines.length < 2) {
@@ -63,18 +63,31 @@ export function parseTradesCSV(csvText: string): TradeParseResult {
   const headerLine = lines[0] ?? "";
   const rawHeaders = headerLine.split(delimiter).map((h) => h.replace(/"/g, "").trim());
   const colIndex: Record<string, number> = {};
+  const unknownHeaders: string[] = [];
   for (const [i, h] of rawHeaders.entries()) {
+    if (!h) continue;
     const canonical = COL_MAP[normaliseHeader(h)];
-    if (canonical) colIndex[canonical] = i;
+    if (canonical) {
+      colIndex[canonical] = i;
+    } else {
+      unknownHeaders.push(h);
+    }
+  }
+  if (unknownHeaders.length > 0) {
+    warnings.push({
+      code: "UNKNOWN_COLUMN",
+      message: `Unrecognised column(s), values ignored: ${unknownHeaders.join(", ")}`,
+    });
   }
 
   const required = ["tradeNum", "type", "dateTime", "price"];
   const missingRequired = required.filter((c) => colIndex[c] === undefined);
   if (missingRequired.length > 0) {
+    warnings.push({ code: "MISSING_REQUIRED_COLUMNS", message: `Missing columns: ${missingRequired.join(", ")}` });
     return {
       parserVersion: PARSER_VERSION,
       trades: [],
-      warnings: [{ code: "MISSING_REQUIRED_COLUMNS", message: `Missing columns: ${missingRequired.join(", ")}` }],
+      warnings,
     };
   }
 
@@ -146,7 +159,7 @@ export function parseTradesCSV(csvText: string): TradeParseResult {
 
   if (entries.size > 0) {
     warnings.push({
-      code: "OPEN_TRADES",
+      code: "OPEN_TRADE",
       message: `${entries.size} open trade(s) not included (no exit row): ${[...entries.keys()].join(", ")}`,
     });
   }

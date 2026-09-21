@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { resolve, dirname } from "node:path";
 import { parseTradesCSV } from "../csv/trades-parser.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const FIXTURES_ROOT = resolve(__dirname, "../../../../pine/fixtures/tradingview-exports");
+const readFixture = (variant: string, file: string) =>
+  readFileSync(resolve(FIXTURES_ROOT, variant, file), "utf-8");
 
 const SAMPLE_CSV = `Trade #,Type,Signal,Date/Time,Price,Contracts,Profit,Cum. Profit,Commission
 1,Entry Long,Order,2024-01-02 09:30,100.50,10,,0,5.00
@@ -53,5 +61,27 @@ describe("parseTradesCSV", () => {
   it("returns parser version", () => {
     const { parserVersion } = parseTradesCSV(SAMPLE_CSV);
     expect(parserVersion).toBe("1.0.0");
+  });
+});
+
+describe("parseTradesCSV — golden TradingView export fixtures", () => {
+  it("parses the clean US-locale export with no warnings", () => {
+    const csv = readFixture("clean-us", "list-of-trades.csv");
+    const { trades, warnings } = parseTradesCSV(csv);
+    expect(trades).toHaveLength(3);
+    expect(warnings).toHaveLength(0);
+    expect(trades[0]).toMatchObject({ direction: "LONG", netPnl: "49.00" });
+    expect(trades[1]).toMatchObject({ direction: "SHORT", netPnl: "49.00" });
+    expect(trades[2]).toMatchObject({ direction: "LONG", netPnl: "-41.00" });
+  });
+
+  it("parses the EU-locale export and flags the unrecognised Run-up column", () => {
+    const csv = readFixture("eu-locale-unknown-column", "list-of-trades.csv");
+    const { trades, warnings } = parseTradesCSV(csv);
+    expect(trades).toHaveLength(1);
+    expect(parseFloat(trades[0]!.entryPrice)).toBeCloseTo(1000.5, 2);
+    expect(parseFloat(trades[0]!.netPnl)).toBeCloseTo(19.5, 2);
+    const unknownColWarning = warnings.find((w) => w.code === "UNKNOWN_COLUMN");
+    expect(unknownColWarning?.message).toContain("Run-up");
   });
 });

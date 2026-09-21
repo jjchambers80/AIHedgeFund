@@ -30,16 +30,10 @@ import {
   computeDrawdown,
   computeParityReport,
 } from "@arf-os/metrics";
+import { PARSE_REPORT_QUEUE, type ParseReportJobData } from "@arf-os/contracts";
 
-export const PARSE_REPORT_QUEUE = "arf-os:parse-report";
-
-export interface ParseReportJobData {
-  uploadId: string;
-  verificationId: string;
-  objectKey: string;
-  reportType: "PERFORMANCE_SUMMARY" | "LIST_OF_TRADES";
-  orgId: string;
-}
+export { PARSE_REPORT_QUEUE };
+export type { ParseReportJobData };
 
 export async function parseReportJob(db: Db, job: Job): Promise<void> {
   const data = job.data as ParseReportJobData;
@@ -301,10 +295,25 @@ async function tryComputeParity(
     totalCommission: getMetric("total_commission"),
     longestLosingStreak: parseInt(getMetric("longest_losing_streak"), 10),
     avgHoldingDurationHours: getMetric("avg_holding_hours") || null,
+    monthlyReturns: [],
   };
 
+  const runTradeRows = await db
+    .select()
+    .from(tradesTable)
+    .where(eq(tradesTable.backtestRunId, run.id));
+  const runTrades = runTradeRows.map((t) => ({
+    tradeNumber: t.tradeNumber,
+    direction: t.direction as "LONG" | "SHORT",
+    entryPrice: t.entryPrice,
+    exitPrice: t.exitPrice,
+    quantity: t.quantity,
+    commission: t.commission,
+    netPnl: t.netPnl,
+  }));
+
   const maxDrawdownAbs = getMetric("max_drawdown_abs");
-  const parityResult = computeParityReport(summaryToUse, arfMetrics, maxDrawdownAbs);
+  const parityResult = computeParityReport(summaryToUse, arfMetrics, maxDrawdownAbs, runTrades);
 
   const reportId = uuidv7();
   await db.insert(parityReports).values({

@@ -18,7 +18,9 @@ export const strategies = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("strategies_org_id_idx").on(t.orgId)],
+  (t) => ({
+    strategiesOrgIdIdx: index("strategies_org_id_idx").on(t.orgId),
+  }),
 );
 
 export const strategyVersions = pgTable(
@@ -42,7 +44,9 @@ export const strategyVersions = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("strategy_versions_strategy_id_idx").on(t.strategyId)],
+  (t) => ({
+    strategyVersionsStrategyIdIdx: index("strategy_versions_strategy_id_idx").on(t.strategyId),
+  }),
 );
 
 export const strategyDefinitions = pgTable("strategy_definitions", {

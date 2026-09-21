@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, jsonb, index, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, jsonb, index, unique, integer } from "drizzle-orm/pg-core";
 import { organisations } from "./identity.js";
 import { strategyVersions } from "./strategy.js";
 import { tradingViewVerifications } from "./testing.js";
@@ -30,7 +30,9 @@ export const committeeDecisions = pgTable(
     parityReportId: text("parity_report_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("committee_decisions_version_idx").on(t.strategyVersionId)],
+  (t) => ({
+    committeeDecisionsVersionIdx: index("committee_decisions_version_idx").on(t.strategyVersionId),
+  }),
 );
 
 export const auditEvents = pgTable(
@@ -51,18 +53,18 @@ export const auditEvents = pgTable(
     traceId: text("trace_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [
-    index("audit_events_aggregate_idx").on(t.aggregateType, t.aggregateId),
-    index("audit_events_org_idx").on(t.orgId),
-    index("audit_events_created_idx").on(t.createdAt),
-  ],
+  (t) => ({
+    auditEventsAggregateIdx: index("audit_events_aggregate_idx").on(t.aggregateType, t.aggregateId),
+    auditEventsOrgIdx: index("audit_events_org_idx").on(t.orgId),
+    auditEventsCreatedIdx: index("audit_events_created_idx").on(t.createdAt),
+  }),
 );
 
 export const outboxEvents = pgTable("outbox_events", {
   id: text("id").primaryKey(),
   event: jsonb("event").notNull(),
   publishedAt: timestamp("published_at", { withTimezone: true }),
-  attempts: text("attempts").notNull().default("0"),
+  attempts: integer("attempts").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -77,5 +79,7 @@ export const idempotencyRecords = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   },
-  (t) => [unique("idempotency_key_unique").on(t.idempotencyKey)],
+  (t) => ({
+    idempotencyKeyUnique: unique("idempotency_key_unique").on(t.idempotencyKey),
+  }),
 );

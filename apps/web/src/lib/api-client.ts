@@ -164,6 +164,61 @@ export interface AuditEvent {
   createdAt: string;
 }
 
+export interface TradingViewVerification {
+  id: string;
+  orgId: string;
+  strategyVersionId: string;
+  pineRevisionId: string;
+  symbol: string;
+  timeframe: string;
+  dateFrom: string | null;
+  dateTo: string | null;
+  status: string;
+  parityReportId: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReportUpload {
+  id: string;
+  verificationId: string;
+  reportType: "PERFORMANCE_SUMMARY" | "LIST_OF_TRADES";
+  objectKey: string;
+  checksumSha256: string;
+  fileSizeBytes: number;
+  parserVersion: string | null;
+  parseStatus: string;
+  parseWarnings: { code: string; message: string }[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PresignResult {
+  uploadId: string;
+  presignedUrl: string;
+  objectKey: string;
+  expiresAt: string;
+}
+
+export interface Trade {
+  id: string;
+  backtestRunId: string;
+  tradeNumber: number;
+  direction: "LONG" | "SHORT";
+  entryTime: string;
+  exitTime: string;
+  entryPrice: string;
+  exitPrice: string;
+  quantity: string;
+  grossPnl: string;
+  commission: string;
+  netPnl: string;
+  entryReason: string | null;
+  exitReason: string | null;
+  parityStatus: string;
+}
+
 // ── Campaign endpoints ────────────────────────────────────────────────────────
 
 export const campaigns = {
@@ -260,5 +315,48 @@ export const audit = {
   list: (aggregateType: string, aggregateId: string, cursor?: string) =>
     request<{ items: AuditEvent[]; nextCursor: string | null }>(
       `/audit?aggregateType=${encodeURIComponent(aggregateType)}&aggregateId=${encodeURIComponent(aggregateId)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+    ),
+};
+
+// ── Verification endpoints ────────────────────────────────────────────────────
+
+export const verifications = {
+  get: (id: string) => request<TradingViewVerification>(`/verifications/${id}`),
+
+  create: (data: {
+    strategyVersionId: string;
+    pineRevisionId: string;
+    symbol: string;
+    timeframe: string;
+    dateFrom?: string | null;
+    dateTo?: string | null;
+  }) =>
+    request<TradingViewVerification>("/verifications", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  presign: (verificationId: string, reportType: "PERFORMANCE_SUMMARY" | "LIST_OF_TRADES") =>
+    request<PresignResult>(`/verifications/${verificationId}/presign`, {
+      method: "POST",
+      body: JSON.stringify({ reportType }),
+    }),
+
+  listUploads: (verificationId: string) =>
+    request<ReportUpload[]>(`/verifications/${verificationId}/uploads`),
+
+  completeUpload: (verificationId: string, uploadId: string, data: { checksumSha256: string; fileSizeBytes: number }) =>
+    request<{ uploadId: string; parseStatus: string }>(`/verifications/${verificationId}/uploads/${uploadId}/complete`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+};
+
+// ── Trades endpoints ──────────────────────────────────────────────────────────
+
+export const trades = {
+  listForVersion: (versionId: string, cursor?: string) =>
+    request<{ items: Trade[]; nextCursor: string | null }>(
+      `/versions/${versionId}/trades${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`,
     ),
 };

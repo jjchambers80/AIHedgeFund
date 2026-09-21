@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, integer, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, integer, jsonb, numeric } from "drizzle-orm/pg-core";
 import { organisations } from "./identity.js";
 
 export const campaigns = pgTable("campaigns", {
@@ -14,7 +14,7 @@ export const campaigns = pgTable("campaigns", {
   strategyFamilies: jsonb("strategy_families").notNull().default([]),
   constraints: jsonb("constraints").notNull().default([]),
   status: text("status").notNull().default("CAMPAIGN_BACKLOG"),
-  modelBudgetUsd: text("model_budget_usd"), // numeric as text
+  modelBudgetUsd: numeric("model_budget_usd", { precision: 20, scale: 2 }),
   computeRunsLimit: integer("compute_runs_limit"),
   createdBy: text("created_by").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

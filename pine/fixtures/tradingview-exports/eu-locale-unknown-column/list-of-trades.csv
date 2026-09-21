@@ -1,0 +1,3 @@
+Trade #;Type;Signal;Date/Time;Price;Contracts;Profit;Run-up;Cum. Profit;Commission
+1;Entry Long;Order;2024-02-01 09:00;1000,50;2;;0,00;0,00;2,00
+1;Exit Long;Order;2024-02-01 17:00;1010,25;2;19,50;9,75;19,50;2,00

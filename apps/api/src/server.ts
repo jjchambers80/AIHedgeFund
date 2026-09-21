@@ -5,11 +5,13 @@
 import Fastify, { type FastifyInstance, type FastifyRequest, type FastifyReply } from "fastify";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
+import { getDb } from "@arf-os/db";
 import { stubAuthFromHeaders, isStubMode } from "@arf-os/auth";
 import { UnauthorizedError, ForbiddenError } from "@arf-os/auth";
 import type { AuthContext } from "@arf-os/auth";
 // ProblemDetailSchema not imported directly since URNs fail z.string().url() validation
 import { NotFoundError, DomainValidationError, ConflictError } from "./lib/errors.js";
+import { registerIdempotency } from "./lib/idempotency.js";
 import { registerCampaignRoutes } from "./routes/campaigns.js";
 import { registerStrategyRoutes } from "./routes/strategies.js";
 import { registerVerificationRoutes } from "./routes/verifications.js";
@@ -68,6 +70,10 @@ export async function buildServer(): Promise<FastifyInstance> {
       throw new UnauthorizedError("Production auth not configured. Set STUB_AUTH=true for development.");
     }
   });
+
+  // ── Idempotency ──────────────────────────────────────────────────────────────
+
+  registerIdempotency(server, getDb());
 
   // ── Health ────────────────────────────────────────────────────────────────────
 

@@ -32,6 +32,8 @@ import {
 import {
   strategies as strategyApi,
   decisions as decisionsApi,
+  verifications as verificationsApi,
+  audit,
   type Strategy,
   type StrategyVersion,
   type MetricSnapshot,
@@ -39,7 +41,26 @@ import {
   type DrawdownPoint,
   type ParityReport,
   type CommitteeDecision,
+  type AuditEvent,
 } from "@/lib/api-client";
+
+interface Trade {
+  id: string;
+  backtestRunId: string;
+  tradeNumber: number;
+  direction: "LONG" | "SHORT";
+  entryTime: string;
+  exitTime: string;
+  entryPrice: string;
+  exitPrice: string;
+  quantity: string;
+  grossPnl: string;
+  commission: string;
+  netPnl: string;
+  entryReason: string | null;
+  exitReason: string | null;
+  parityStatus: string;
+}
 
 // ── Badge components ──────────────────────────────────────────────────────────
 
@@ -252,16 +273,173 @@ function ParitySection({ report }: { report: ParityReport }) {
   );
 }
 
+// ── Verification creation ─────────────────────────────────────────────────────
+
+function VerificationSection({ version }: { version: StrategyVersion }) {
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ symbol: "", timeframe: "", dateFrom: "", dateTo: "" });
+  const [creating, setCreating] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [createdId, setCreatedId] = useState<string | null>(null);
+
+  if (!version.pineRevisionId) {
+    return (
+      <div className="text-sm text-[var(--muted-fg)]">
+        Upload a Pine source revision for this version before starting a TradingView verification.
+      </div>
+    );
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setCreating(true);
+    setErr(null);
+    try {
+      const verif = await verificationsApi.create({
+        strategyVersionId: version.id,
+        pineRevisionId: version.pineRevisionId!,
+        symbol: form.symbol,
+        timeframe: form.timeframe,
+        dateFrom: form.dateFrom || null,
+        dateTo: form.dateTo || null,
+      });
+      setCreatedId(verif.id);
+      setShowForm(false);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Failed to create verification");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="text-xs text-[var(--muted-fg)]">
+        Reproduce this exact strategy version in TradingView, then upload the Performance Summary and List of Trades CSV exports.
+      </div>
+      <div className="grid grid-cols-2 gap-3 text-xs">
+        <div>
+          <div className="text-[var(--muted-fg)]">Strategy Version</div>
+          <div className="font-mono">{version.id.slice(0, 16)}…</div>
+        </div>
+        <div>
+          <div className="text-[var(--muted-fg)]">Pine Hash</div>
+          <div className="font-mono">{version.pineSourceHash?.slice(0, 12) ?? "—"}…</div>
+        </div>
+      </div>
+
+      {createdId ? (
+        <Link
+          href={`/verifications/${createdId}`}
+          className="inline-block px-3 py-1.5 text-xs rounded bg-[var(--accent)] text-white"
+        >
+          Verification created — go to upload page →
+        </Link>
+      ) : (
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className="px-3 py-1.5 text-xs rounded border border-[var(--accent)] text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white transition-colors"
+        >
+          Start New Verification
+        </button>
+      )}
+
+      {showForm && (
+        <form onSubmit={(e) => void handleSubmit(e)} className="rounded border border-[var(--card-border)] p-4 space-y-3">
+          <div>
+            <label className="block text-xs text-[var(--muted-fg)] mb-1">Symbol</label>
+            <input
+              value={form.symbol}
+              onChange={(e) => setForm((f) => ({ ...f, symbol: e.target.value }))}
+              placeholder="e.g. BINANCE:BTCUSDT"
+              className="w-full bg-[var(--background)] border border-[var(--card-border)] rounded px-3 py-2 text-sm"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-[var(--muted-fg)] mb-1">Timeframe</label>
+            <input
+              value={form.timeframe}
+              onChange={(e) => setForm((f) => ({ ...f, timeframe: e.target.value }))}
+              placeholder="e.g. 1h, 4h, 1D"
+              className="w-full bg-[var(--background)] border border-[var(--card-border)] rounded px-3 py-2 text-sm"
+              required
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-[var(--muted-fg)] mb-1">Date From (optional)</label>
+              <input
+                type="date"
+                value={form.dateFrom}
+                onChange={(e) => setForm((f) => ({ ...f, dateFrom: e.target.value }))}
+                className="w-full bg-[var(--background)] border border-[var(--card-border)] rounded px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-[var(--muted-fg)] mb-1">Date To (optional)</label>
+              <input
+                type="date"
+                value={form.dateTo}
+                onChange={(e) => setForm((f) => ({ ...f, dateTo: e.target.value }))}
+                className="w-full bg-[var(--background)] border border-[var(--card-border)] rounded px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+          {err && <div className="text-xs text-[var(--danger)]">{err}</div>}
+          <div className="flex gap-2">
+            <button type="submit" disabled={creating} className="px-3 py-1.5 text-xs rounded bg-[var(--accent)] text-white disabled:opacity-50">
+              {creating ? "Creating..." : "Create Verification"}
+            </button>
+            <button type="button" onClick={() => setShowForm(false)} className="px-3 py-1.5 text-xs rounded border border-[var(--card-border)]">
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
 // ── Decision list ─────────────────────────────────────────────────────────────
 
-function DecisionList({ decisions, versionId, onRefresh }: { decisions: CommitteeDecision[]; versionId: string; onRefresh: () => void }) {
+function DecisionList({
+  decisions,
+  versionId,
+  onRefresh,
+  parity,
+  hasEvidence,
+}: {
+  decisions: CommitteeDecision[];
+  versionId: string;
+  onRefresh: () => void;
+  parity: ParityReport | null;
+  hasEvidence: boolean;
+}) {
   const [form, setForm] = useState({ decision: "RESEARCH_APPROVED", summary: "", humanOverride: false });
   const [creating, setCreating] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
 
+  // CLAUDE.md §18.3 / build-prompt Decision screen spec: never permit
+  // PAPER_APPROVED when required verification evidence is missing or
+  // parity is FAIL. The workflow engine is the real authority (it will
+  // reject an invalid transition server-side regardless), but the UI must
+  // not offer a one-click path that looks approved while hiding that gate.
+  const parityFail = parity?.status === "FAIL";
+  const paperApprovedBlocked = !hasEvidence || parityFail;
+  const blockReason = !hasEvidence
+    ? "No independent metrics/evidence recorded for this version yet."
+    : parityFail
+      ? "TradingView parity check is FAIL — resolve the divergence before paper approval."
+      : null;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (form.decision === "PAPER_APPROVED" && paperApprovedBlocked && !form.humanOverride) {
+      setErr(`Cannot select Paper Approved: ${blockReason} Use human override to bypass (audited).`);
+      return;
+    }
     setCreating(true);
     setErr(null);
     try {
@@ -302,6 +480,28 @@ function DecisionList({ decisions, versionId, onRefresh }: { decisions: Committe
           <div className="text-xs text-[var(--warning)] bg-yellow-900/20 border border-yellow-900/40 rounded px-3 py-2">
             Committee decision — the workflow machine will verify the transition is valid for this role and lifecycle state.
           </div>
+
+          <div className="text-xs rounded border border-[var(--card-border)] px-3 py-2 space-y-1">
+            <div className="font-semibold text-[var(--muted-fg)]">Decision readiness</div>
+            <div className="flex items-center gap-2">
+              <span className={hasEvidence ? "text-[var(--success)]" : "text-[var(--danger)]"}>
+                {hasEvidence ? "✓" : "✗"}
+              </span>
+              <span>Independent metrics recorded</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={parity && !parityFail ? "text-[var(--success)]" : parity ? "text-[var(--danger)]" : "text-[var(--muted-fg)]"}>
+                {parity ? (parityFail ? "✗" : "✓") : "—"}
+              </span>
+              <span>TradingView parity: {parity?.status ?? "no report yet"}</span>
+            </div>
+            {paperApprovedBlocked && (
+              <div className="text-[var(--danger)] mt-1">
+                Paper Approved is blocked: {blockReason} Requires human override to proceed.
+              </div>
+            )}
+          </div>
+
           <div>
             <label className="block text-xs text-[var(--muted-fg)] mb-1">Decision</label>
             <select
@@ -310,7 +510,9 @@ function DecisionList({ decisions, versionId, onRefresh }: { decisions: Committe
               className="w-full bg-[var(--background)] border border-[var(--card-border)] rounded px-3 py-2 text-sm"
             >
               <option value="RESEARCH_APPROVED">Research Approved</option>
-              <option value="PAPER_APPROVED">Paper Approved</option>
+              <option value="PAPER_APPROVED" disabled={paperApprovedBlocked && !form.humanOverride}>
+                Paper Approved{paperApprovedBlocked ? " (blocked — see readiness above)" : ""}
+              </option>
               <option value="REWORK_WITH_NEW_VERSION">Rework with New Version</option>
               <option value="REJECT">Reject</option>
               <option value="INSUFFICIENT_EVIDENCE">Insufficient Evidence</option>
@@ -385,16 +587,28 @@ export default function StrategyDetailPage() {
   const [drawdown, setDrawdown] = useState<DrawdownPoint[]>([]);
   const [parity, setParity] = useState<ParityReport | null>(null);
   const [decisionsList, setDecisionsList] = useState<CommitteeDecision[]>([]);
+  const [tradesData, setTradesData] = useState<Trade[]>([]);
+  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadVersionData = useCallback(async (versionId: string) => {
-    const [m, e, d, p, dec] = await Promise.allSettled([
+  const loadVersionData = useCallback(async (versionId: string, strategyId?: string) => {
+    const [m, e, d, p, dec, trades, auditRes] = await Promise.allSettled([
       strategyApi.getMetrics(versionId),
       strategyApi.getEquity(versionId),
       strategyApi.getDrawdown(versionId),
       strategyApi.getParity(versionId),
       decisionsApi.list(versionId),
+      fetch(`${process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001/api/v1"}/versions/${versionId}/trades`, {
+        headers: {
+          ...(process.env["NEXT_PUBLIC_STUB_AUTH"] === "true" ? {
+            "X-Stub-User-Id": process.env["NEXT_PUBLIC_STUB_USER_ID"] ?? "user_dev",
+            "X-Stub-Org-Id": process.env["NEXT_PUBLIC_STUB_ORG_ID"] ?? "org_dev",
+            "X-Stub-Role": process.env["NEXT_PUBLIC_STUB_ROLE"] ?? "ADMIN",
+          } : {}),
+        },
+      }).then((r) => r.ok ? r.json() as Promise<{ items: Trade[] }> : { items: [] as Trade[] }),
+      strategyId ? audit.list("strategy", strategyId, undefined).catch(() => ({ items: [] as AuditEvent[], nextCursor: null })) : Promise.resolve({ items: [] as AuditEvent[], nextCursor: null }),
     ]);
 
     if (m.status === "fulfilled") setMetrics(m.value.snapshots);
@@ -402,6 +616,8 @@ export default function StrategyDetailPage() {
     if (d.status === "fulfilled") setDrawdown(d.value.points);
     if (p.status === "fulfilled") setParity(p.value);
     if (dec.status === "fulfilled") setDecisionsList(dec.value);
+    if (trades.status === "fulfilled") setTradesData(trades.value.items);
+    if (auditRes.status === "fulfilled") setAuditEvents(auditRes.value.items);
   }, []);
 
   useEffect(() => {
@@ -417,7 +633,7 @@ export default function StrategyDetailPage() {
         setVersions(v);
         const initial = s.currentVersionId ?? v[0]?.id ?? null;
         setSelectedVersionId(initial);
-        if (initial) await loadVersionData(initial);
+        if (initial) await loadVersionData(initial, s.id);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load strategy");
       } finally {
@@ -433,8 +649,9 @@ export default function StrategyDetailPage() {
     setDrawdown([]);
     setParity(null);
     setDecisionsList([]);
-    await loadVersionData(vId);
-  }, [loadVersionData]);
+    setTradesData([]);
+    await loadVersionData(vId, id);
+  }, [loadVersionData, id]);
 
   const selectedVersion = versions.find((v) => v.id === selectedVersionId);
 
@@ -507,6 +724,12 @@ export default function StrategyDetailPage() {
         )}
       </Section>
 
+      {selectedVersion && (
+        <Section title="TradingView Verification">
+          <VerificationSection version={selectedVersion} />
+        </Section>
+      )}
+
       {/* Evidence panels — only shown once we have data */}
       {metrics.length > 0 && (
         <Section
@@ -544,13 +767,74 @@ export default function StrategyDetailPage() {
         </Section>
       )}
 
+      {tradesData.length > 0 && (
+        <Section title="Trades" badge={<span className="text-xs text-[var(--muted-fg)]">TradingView CSV · historical · simulated</span>}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs font-mono">
+              <thead>
+                <tr className="text-[var(--muted-fg)] border-b border-[var(--card-border)]">
+                  <th className="text-left py-1 pr-3">#</th>
+                  <th className="text-left py-1 pr-3">Dir</th>
+                  <th className="text-left py-1 pr-3">Entry</th>
+                  <th className="text-left py-1 pr-3">Exit</th>
+                  <th className="text-right py-1 pr-3">Entry $</th>
+                  <th className="text-right py-1 pr-3">Exit $</th>
+                  <th className="text-right py-1 pr-3">Net P&amp;L</th>
+                  <th className="text-right py-1">Commission</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tradesData.slice(0, 100).map((t) => (
+                  <tr key={t.id} className="border-b border-[var(--card-border)]/50 hover:bg-white/5">
+                    <td className="py-1 pr-3 text-[var(--muted-fg)]">{t.tradeNumber}</td>
+                    <td className={`py-1 pr-3 font-bold ${t.direction === "LONG" ? "text-[var(--success)]" : "text-[var(--danger)]"}`}>{t.direction}</td>
+                    <td className="py-1 pr-3 text-[var(--muted-fg)]">{new Date(t.entryTime).toLocaleDateString()}</td>
+                    <td className="py-1 pr-3 text-[var(--muted-fg)]">{new Date(t.exitTime).toLocaleDateString()}</td>
+                    <td className="py-1 pr-3 text-right">{parseFloat(t.entryPrice).toFixed(2)}</td>
+                    <td className="py-1 pr-3 text-right">{parseFloat(t.exitPrice).toFixed(2)}</td>
+                    <td className={`py-1 pr-3 text-right font-bold ${parseFloat(t.netPnl) >= 0 ? "text-[var(--success)]" : "text-[var(--danger)]"}`}>
+                      {parseFloat(t.netPnl) >= 0 ? "+" : ""}{parseFloat(t.netPnl).toFixed(2)}
+                    </td>
+                    <td className="py-1 text-right text-[var(--muted-fg)]">{parseFloat(t.commission).toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {tradesData.length > 100 && (
+              <div className="text-xs text-[var(--muted-fg)] mt-2">Showing first 100 of {tradesData.length} trades</div>
+            )}
+          </div>
+        </Section>
+      )}
+
       {selectedVersionId && (
         <Section title="Committee Decisions">
           <DecisionList
             decisions={decisionsList}
             versionId={selectedVersionId}
-            onRefresh={() => void loadVersionData(selectedVersionId)}
+            onRefresh={() => void loadVersionData(selectedVersionId, id)}
+            parity={parity}
+            hasEvidence={metrics.length > 0}
           />
+        </Section>
+      )}
+
+      {auditEvents.length > 0 && (
+        <Section title="Audit Trail">
+          <div className="space-y-2">
+            {auditEvents.map((e) => (
+              <div key={e.id} className="flex items-start gap-3 text-xs">
+                <div className="text-[var(--muted-fg)] font-mono whitespace-nowrap pt-0.5">
+                  {new Date(e.createdAt).toLocaleString()}
+                </div>
+                <div>
+                  <span className="font-semibold">{e.action}</span>
+                  {e.actorId && <span className="text-[var(--muted-fg)]"> · {e.actorType}/{e.actorId}</span>}
+                  {e.reason && <div className="text-[var(--muted-fg)] mt-0.5">{e.reason}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
         </Section>
       )}
 

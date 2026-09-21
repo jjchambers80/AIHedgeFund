@@ -7,6 +7,7 @@ import {
   getVerification,
   presignUpload,
   completeUpload,
+  listUploads,
 } from "../services/verification-service.js";
 
 function parseBody<T>(
@@ -41,6 +42,10 @@ export async function registerVerificationRoutes(server: FastifyInstance) {
 
   server.get<{ Params: { id: string } }>("/verifications/:id", async (request) => {
     return getVerification(db, request.auth.orgId, request.params.id);
+  });
+
+  server.get<{ Params: { id: string } }>("/verifications/:id/uploads", async (request) => {
+    return listUploads(db, request.auth.orgId, request.params.id);
   });
 
   server.post<{ Params: { id: string } }>(

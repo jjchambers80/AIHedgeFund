@@ -84,4 +84,26 @@ describe("workflow state machine", () => {
     });
     expect(result.ok).toBe(true);
   });
+
+  it("is pure — calling it twice with identical input yields identical output and no side effects", () => {
+    // transition() itself has no state to dedupe against (CLAUDE.md §3.6's
+    // "idempotent transition command" requirement is satisfied one layer up,
+    // via the API's Idempotency-Key handling — see apps/api/src/lib/idempotency.ts
+    // — since a *command* like "record this decision" is what must not be
+    // double-applied, not this pure rule evaluation). What this function must
+    // guarantee is that it's safe to call repeatedly: same input in, same
+    // result out, nothing mutated.
+    const input = {
+      from: "IDEA_RESEARCH" as const,
+      to: "HYPOTHESIS_DRAFT" as const,
+      actorRole: "RESEARCHER" as const,
+      actorId: "user_1",
+      evidenceTypes: ["idea_card"],
+    };
+    const first = transition(input);
+    const second = transition(input);
+    const third = transition({ ...input }); // fresh object, same values
+    expect(second).toEqual(first);
+    expect(third).toEqual(first);
+  });
 });

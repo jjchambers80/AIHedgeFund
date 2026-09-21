@@ -2,7 +2,7 @@
  * Reconstruct equity and drawdown curves from the parsed trade ledger.
  * Never reads values from screenshots or TV-reported metrics directly.
  */
-import Decimal from "decimal.js";
+import { Decimal } from "decimal.js";
 import type { ParsedTrade } from "@arf-os/pine";
 
 export interface EquityPoint {

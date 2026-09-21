@@ -22,7 +22,9 @@ export const tradingViewVerifications = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("tv_verif_strategy_version_idx").on(t.strategyVersionId)],
+  (t) => ({
+    tvVerifStrategyVersionIdx: index("tv_verif_strategy_version_idx").on(t.strategyVersionId),
+  }),
 );
 
 export const reportUploads = pgTable("report_uploads", {
@@ -67,7 +69,9 @@ export const backtestRuns = pgTable(
     completedAt: timestamp("completed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("backtest_runs_strategy_version_idx").on(t.strategyVersionId)],
+  (t) => ({
+    backtestRunsStrategyVersionIdx: index("backtest_runs_strategy_version_idx").on(t.strategyVersionId),
+  }),
 );
 
 export const trades = pgTable(
@@ -91,7 +95,9 @@ export const trades = pgTable(
     exitReason: text("exit_reason"),
     parityStatus: text("parity_status").notNull().default("UNVERIFIED"),
   },
-  (t) => [index("trades_backtest_run_idx").on(t.backtestRunId)],
+  (t) => ({
+    tradesBacktestRunIdx: index("trades_backtest_run_idx").on(t.backtestRunId),
+  }),
 );
 
 export const equityPoints = pgTable(
@@ -105,7 +111,9 @@ export const equityPoints = pgTable(
     timestamp: timestamp("timestamp", { withTimezone: true }).notNull(),
     equity: numeric("equity", { precision: 20, scale: 8 }).notNull(),
   },
-  (t) => [index("equity_points_run_idx").on(t.backtestRunId)],
+  (t) => ({
+    equityPointsRunIdx: index("equity_points_run_idx").on(t.backtestRunId),
+  }),
 );
 
 export const drawdownPoints = pgTable(
@@ -120,7 +128,9 @@ export const drawdownPoints = pgTable(
     drawdownAbs: numeric("drawdown_abs", { precision: 20, scale: 8 }).notNull(),
     drawdownPct: numeric("drawdown_pct", { precision: 10, scale: 8 }).notNull(),
   },
-  (t) => [index("drawdown_points_run_idx").on(t.backtestRunId)],
+  (t) => ({
+    drawdownPointsRunIdx: index("drawdown_points_run_idx").on(t.backtestRunId),
+  }),
 );
 
 export const metricSnapshots = pgTable(
@@ -135,10 +145,10 @@ export const metricSnapshots = pgTable(
     scopeId: text("scope_id").notNull(),
     computedAt: timestamp("computed_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [
-    index("metric_snapshots_scope_idx").on(t.scopeType, t.scopeId),
-    index("metric_snapshots_name_idx").on(t.metricName),
-  ],
+  (t) => ({
+    metricSnapshotsScopeIdx: index("metric_snapshots_scope_idx").on(t.scopeType, t.scopeId),
+    metricSnapshotsNameIdx: index("metric_snapshots_name_idx").on(t.metricName),
+  }),
 );
 
 export const parityReports = pgTable("parity_reports", {
